@@ -1,0 +1,73 @@
+---
+id: "hamiltonian"
+title: "海森堡哈密顿量的矩阵表示"
+date: 2026-04-13
+type: "math"
+status: "verified"
+parents: []
+visibility: "public"
+description: "在计算基（computational basis）下构造海森堡哈密顿量的稀疏矩阵表示，是一切数值计算的起点。"
+---
+
+## 问题定义
+
+我们研究的系统是一维 $L$ 个格点的各向同性海森堡反铁磁模型：
+
+$$
+\hat{H} = J \sum_{i=0}^{L-2} \left( \hat{S}_i^x \hat{S}_{i+1}^x + \hat{S}_i^y \hat{S}_{i+1}^y + \hat{S}_i^z \hat{S}_{i+1}^z \right)
+$$
+
+其中 $J > 0$ 代表反铁磁耦合，$\hat{S}^\alpha = \frac{1}{2}\sigma^\alpha$ 是自旋-1/2 算符。
+
+## 计算基的选取
+
+Hilbert 空间维度为 $\mathcal{H} = 2^L$。我们用二进制整数编码计算基：
+
+$$
+|n\rangle = |s_0, s_1, \ldots, s_{L-1}\rangle, \quad s_i \in \{0, 1\}
+$$
+
+其中 $s_i = 0$ 代表 $|\uparrow\rangle$，$s_i = 1$ 代表 $|\downarrow\rangle$。
+
+## SzSz 项
+
+$$
+\hat{S}_i^z \hat{S}_{i+1}^z |n\rangle = \frac{1}{4}(-1)^{s_i + s_{i+1}} |n\rangle
+$$
+
+这是对角元素，直接写入稀疏矩阵的对角线。
+
+## S+S- 项（翻转算符）
+
+$$
+\hat{S}_i^+ \hat{S}_{i+1}^- |n\rangle = \begin{cases} |n'\rangle & \text{若 } s_i=1, s_{i+1}=0 \\ 0 & \text{否则} \end{cases}
+$$
+
+$|n'\rangle$ 是将第 $i$ 位 flip 为 0、第 $i+1$ 位 flip 为 1 后的新态。
+
+```python
+import numpy as np
+from scipy import sparse
+
+def build_hamiltonian(L: int, J: float = 1.0) -> sparse.csr_matrix:
+    """构造一维海森堡反铁磁哈密顿量的稀疏矩阵。"""
+    dim = 2 ** L
+    rows, cols, data = [], [], []
+
+    for n in range(dim):
+        diag = 0.0
+        for i in range(L - 1):
+            si = (n >> i) & 1
+            sj = (n >> (i + 1)) & 1
+            # SzSz 项
+            diag += 0.25 * J * (1 - 2 * si) * (1 - 2 * sj)
+            # S+S- 和 S-S+ 项
+            if si != sj:
+                m = n ^ (1 << i) ^ (1 << (i + 1))  # 翻转两个位
+                rows.append(n); cols.append(m); data.append(0.5 * J)
+        rows.append(n); cols.append(n); data.append(diag)
+
+    return sparse.csr_matrix((data, (rows, cols)), shape=(dim, dim))
+```
+
+**关键性质**：该矩阵具有 $U(1)$ 对称性（总磁化量守恒），每一个总 $S^z$ 扇区可以独立对角化，大幅减小有效矩阵规模。

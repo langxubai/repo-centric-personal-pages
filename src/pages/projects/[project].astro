@@ -1,0 +1,413 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ViewToggle from '../../components/ViewToggle';
+import TopologyCanvas from '../../components/TopologyCanvas';
+import type { GraphEdge } from '../../components/TopologyCanvas';
+
+export async function getStaticPaths() {
+  const allEntries = await getCollection('projects');
+  const projectSlugs = new Set<string>();
+  allEntries.forEach((e) => projectSlugs.add(e.slug.split('/')[0]));
+  return Array.from(projectSlugs).map((project) => ({ params: { project } }));
+}
+
+const { project } = Astro.params;
+const allEntries = await getCollection('projects');
+
+const projectEntries = allEntries.filter(
+  (e) => e.slug.startsWith(project + '/') && e.data.visibility !== 'private'
+);
+
+// ── Index entry ─────────────────────────────────────────────────────────────
+const indexEntry = projectEntries.find((e) => e.slug === `${project}/index`);
+const { Content: IndexContent } = indexEntry
+  ? await indexEntry.render()
+  : { Content: null };
+
+// ── Node entries ─────────────────────────────────────────────────────────────
+const nodeEntries = projectEntries.filter((e) => e.slug.includes('/nodes/'));
+const renderedNodes = await Promise.all(
+  nodeEntries.map(async (e) => {
+    const { Content } = await e.render();
+    return {
+      id: e.data.id ?? e.slug.split('/').pop() ?? e.slug,
+      title: e.data.title,
+      type: (e.data.type ?? 'logic') as 'math' | 'code' | 'logic' | 'bugfix',
+      status: (e.data.status ?? 'draft') as 'draft' | 'in-progress' | 'verified' | 'failed',
+      description: e.data.description,
+      slug: e.slug,
+      parents: e.data.parents ?? [],
+      Content,
+    };
+  })
+);
+
+// ── Commit entries ───────────────────────────────────────────────────────────
+const commitEntries = projectEntries
+  .filter((e) => e.slug.includes('/commits/'))
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
+const renderedCommits = await Promise.all(
+  commitEntries.map(async (e) => {
+    const { Content } = await e.render();
+    return {
+      title: e.data.title,
+      date: e.data.date.toISOString(),
+      tags: e.data.tags ?? [],
+      summary: e.data.summary,
+      Content,
+    };
+  })
+);
+
+// ── Graph data ───────────────────────────────────────────────────────────────
+const graphNodes = renderedNodes.map((n) => ({
+  id: n.id, title: n.title, type: n.type, status: n.status,
+  description: n.description, slug: n.slug,
+}));
+const edges: GraphEdge[] = renderedNodes.flatMap((n) =>
+  n.parents.map((p) => ({ source: p, target: n.id }))
+);
+
+const meta = indexEntry?.data;
+const pageTitle = meta?.title ?? project;
+---
+
+<BaseLayout
+  title={`${pageTitle} — Digital Garden`}
+  description={meta?.description ?? `Project: ${project}`}
+>
+  <!-- Hidden SSR content containers (React reads innerHTML on mount) -->
+  <div id="ssr-project-data" hidden aria-hidden="true"
+    data-graph-nodes={JSON.stringify(graphNodes)}
+    data-edges={JSON.stringify(edges)}
+    data-commits-meta={JSON.stringify(renderedCommits.map(c => ({
+      title: c.title, date: c.date, tags: c.tags, summary: c.summary
+    })))}
+  >
+    <div id="ssr-index">
+      {IndexContent && <IndexContent />}
+    </div>
+    {renderedNodes.map((n) => (
+      <div id={`ssr-node-${n.id}`}>
+        <n.Content />
+      </div>
+    ))}
+    {renderedCommits.map((c, i) => (
+      <div id={`ssr-commit-${i}`}>
+        <c.Content />
+      </div>
+    ))}
+  </div>
+
+  <article class="project-page">
+    <!-- Header -->
+    <header class="project-header">
+      <div class="container">
+        <nav class="breadcrumb" aria-label="Breadcrumb">
+          <a href="/" class="breadcrumb-link">Projects</a>
+          <span class="breadcrumb-sep" aria-hidden="true">/</span>
+          <span class="breadcrumb-current">{project}</span>
+        </nav>
+        <div class="header-main">
+          <div class="header-info">
+            <div class="header-badge">
+              {meta?.status && <span class={`status-dot status-${meta.status}`}></span>}
+              <span class="header-project-id">{project}</span>
+            </div>
+            <h1 class="header-title">{pageTitle}</h1>
+            {meta?.description && <p class="header-description">{meta.description}</p>}
+            <div class="header-meta">
+              <span class="meta-count">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v4M9.5 17.5 12 11l2.5 6.5"/></svg>
+                {graphNodes.length} nodes
+              </span>
+              <span class="meta-count">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                {renderedCommits.length} commits
+              </span>
+              {meta?.date && (
+                <time datetime={meta.date.toISOString()} class="meta-date">
+                  {meta.date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' })}
+                </time>
+              )}
+            </div>
+            <div class="header-tags">
+              {(meta?.tags ?? []).map((tag) => <span class="tag">{tag}</span>)}
+            </div>
+          </div>
+          <div class="header-controls">
+            <ViewToggle client:load />
+            {meta?.links?.github && (
+              <a href={meta.links.github} target="_blank" rel="noopener" class="link-btn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+                GitHub
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- View Content (driven by client-side toggles) -->
+    <div class="project-body container">
+      <!-- Blueprint View -->
+      <div id="view-blueprint" class="view-panel blueprint-layout">
+        <aside class="overview-panel glass">
+          <div class="overview-scroll prose" id="overview-content">
+            {IndexContent ? <IndexContent /> : <p>No overview yet. Add an <code>index.mdx</code>.</p>}
+          </div>
+        </aside>
+        <div class="canvas-panel">
+          <div class="canvas-wrap glass" id="topology-mount">
+            {graphNodes.length > 0
+              ? <TopologyCanvas
+                  client:only="react"
+                  nodes={graphNodes}
+                  edges={edges}
+                  onNodeClick={() => {}}
+                />
+              : <div class="empty-canvas"><span>⬡</span><p>No nodes yet.</p></div>
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- Journey View -->
+      <div id="view-journey" class="view-panel journey-layout" style="display:none">
+        {renderedCommits.length === 0
+          ? <div class="empty-state"><span>📝</span><p>No commits yet. Add MDX files to <code>commits/</code></p></div>
+          : <div class="timeline">
+              {renderedCommits.map((c, i) => (
+                <article class="commit-entry glass">
+                  <div class="commit-spine">
+                    <div class="commit-dot"></div>
+                    {i < renderedCommits.length - 1 && <div class="commit-line"></div>}
+                  </div>
+                  <div class="commit-body">
+                    <div class="commit-meta">
+                      <time class="commit-time" datetime={c.date}>
+                        {new Date(c.date).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
+                      </time>
+                      <div class="commit-tags">
+                        {c.tags.map((tag) => <span class="tag">{tag}</span>)}
+                      </div>
+                    </div>
+                    <h2 class="commit-title">{c.title}</h2>
+                    {c.summary && <p class="commit-summary">{c.summary}</p>}
+                    <div class="prose commit-content">
+                      <c.Content />
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+        }
+      </div>
+
+      <!-- Node Detail Modal (rendered as hidden, shown via node click) -->
+      <div id="node-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-label="Node detail">
+        <div class="modal-panel glass">
+          <div class="modal-header">
+            <span id="modal-type-badge" class="modal-type-badge"></span>
+            <button id="modal-close" class="modal-close" aria-label="Close">✕</button>
+          </div>
+          <h2 id="modal-title" class="modal-title"></h2>
+          <div id="modal-body" class="modal-body prose"></div>
+        </div>
+      </div>
+    </div>
+  </article>
+</BaseLayout>
+
+<script>
+  import { viewMode } from '../../stores/viewMode';
+
+  // ── View toggle logic ────────────────────────────────────────────────────────
+  function syncView(mode: 'blueprint' | 'journey') {
+    const bp = document.getElementById('view-blueprint');
+    const jn = document.getElementById('view-journey');
+    if (bp) bp.style.display = mode === 'blueprint' ? '' : 'none';
+    if (jn) jn.style.display = mode === 'journey' ? '' : 'none';
+  }
+
+  syncView(viewMode.get());
+  viewMode.subscribe((mode) => syncView(mode));
+
+  // ── Node modal ────────────────────────────────────────────────────────────────
+  const modal = document.getElementById('node-modal')!;
+  const modalTitle = document.getElementById('modal-title')!;
+  const modalBadge = document.getElementById('modal-type-badge')!;
+  const modalBody = document.getElementById('modal-body')!;
+  const modalClose = document.getElementById('modal-close')!;
+
+  const typeColors: Record<string, string> = {
+    math: '#a78bfa', code: '#6d8df7', logic: '#34d399', bugfix: '#fb923c',
+  };
+  const typeIcons: Record<string, string> = {
+    math: '∑', code: '</>', logic: '⬡', bugfix: '🔧',
+  };
+
+  // ReactFlow emits a custom event when a node is clicked
+  window.addEventListener('topology:node-click', (e: Event) => {
+    const { id, title, type } = (e as CustomEvent).detail;
+    const nodeHtmlEl = document.getElementById(`ssr-node-${id}`);
+    if (!nodeHtmlEl) return;
+
+    const color = typeColors[type] ?? '#6d8df7';
+    modalBadge.textContent = `${typeIcons[type] ?? ''} ${type}`;
+    modalBadge.style.color = color;
+    modalBadge.style.borderColor = color + '55';
+    modalBadge.style.background = color + '18';
+
+    modalTitle.textContent = title;
+    modalBody.innerHTML = nodeHtmlEl.innerHTML;
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  });
+
+  function closeModal() {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  modalClose.addEventListener('click', closeModal);
+  modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+</script>
+
+<style>
+  .project-page { min-height: calc(100vh - var(--nav-height)); }
+
+  .project-header {
+    background: var(--bg-deep);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: var(--space-8) 0 var(--space-6);
+  }
+
+  .breadcrumb {
+    display: flex; align-items: center; gap: var(--space-2);
+    font-size: 0.8rem; color: var(--text-muted); margin-bottom: var(--space-6);
+  }
+  .breadcrumb-link { color: var(--text-muted); transition: color var(--transition-fast); }
+  .breadcrumb-link:hover { color: var(--accent-primary); }
+  .breadcrumb-sep, .breadcrumb-current { color: var(--text-muted); }
+  .breadcrumb-current { color: var(--text-secondary); }
+
+  .header-main {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: var(--space-8); flex-wrap: wrap;
+  }
+  .header-info { flex: 1; display: flex; flex-direction: column; gap: var(--space-3); }
+  .header-badge {
+    display: flex; align-items: center; gap: var(--space-2);
+    font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted);
+  }
+  .header-project-id { color: var(--accent-primary); }
+  .header-title { font-size: clamp(1.6rem, 4vw, 2.5rem); color: var(--text-primary); letter-spacing: -0.03em; line-height: 1.2; }
+  .header-description { color: var(--text-secondary); font-size: 1rem; max-width: 70ch; line-height: 1.7; }
+  .header-meta { display: flex; align-items: center; gap: var(--space-5); flex-wrap: wrap; }
+  .meta-count { display: flex; align-items: center; gap: var(--space-2); font-size: 0.82rem; color: var(--text-muted); }
+  .meta-date { font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono); }
+  .header-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .header-controls { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-3); flex-shrink: 0; }
+  .link-btn {
+    display: inline-flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+    border: 1px solid var(--border-normal); color: var(--text-secondary);
+    font-size: 0.82rem; font-weight: 500; transition: all var(--transition-fast);
+  }
+  .link-btn:hover { color: var(--accent-primary); border-color: var(--border-accent); background: rgba(109,141,247,0.08); }
+
+  .project-body { padding-top: var(--space-6); padding-bottom: var(--space-16); }
+
+  /* ── Blueprint layout ── */
+  .blueprint-layout {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: var(--space-5);
+    height: calc(100vh - var(--nav-height) - 200px);
+    min-height: 520px;
+  }
+  .overview-panel { border-radius: var(--radius-lg); overflow: hidden; }
+  .overview-scroll { height: 100%; overflow-y: auto; padding: var(--space-7); scrollbar-width: thin; }
+  .canvas-panel { height: 100%; }
+  .canvas-wrap { width: 100%; height: 100%; border-radius: var(--radius-lg); background: rgba(7,7,15,0.6); }
+  .empty-canvas {
+    height: 100%; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: var(--space-3); color: var(--text-muted);
+  }
+  .empty-canvas span { font-size: 2.5rem; }
+
+  /* ── Journey layout ── */
+  .journey-layout { max-width: 780px; margin: 0 auto; }
+  .timeline { display: flex; flex-direction: column; }
+  .commit-entry {
+    display: grid; grid-template-columns: 48px 1fr;
+    border-radius: var(--radius-lg); margin-bottom: var(--space-4);
+    padding: var(--space-7) var(--space-7) var(--space-7) 0;
+    transition: border-color var(--transition-normal);
+  }
+  .commit-entry:hover { border-color: var(--border-accent); }
+  .commit-spine { display: flex; flex-direction: column; align-items: center; padding-top: 4px; }
+  .commit-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    background: var(--accent-primary); box-shadow: 0 0 8px var(--accent-glow);
+    margin-left: 24px;
+  }
+  .commit-line {
+    flex: 1; width: 1px; margin-top: 8px;
+    background: linear-gradient(to bottom, var(--border-accent), transparent);
+  }
+  .commit-meta { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); flex-wrap: wrap; }
+  .commit-time { font-size: 0.78rem; font-family: var(--font-mono); color: var(--text-muted); }
+  .commit-tags { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+  .commit-title { font-size: 1.15rem; font-weight: 600; color: var(--text-primary); margin-bottom: var(--space-2); line-height: 1.35; }
+  .commit-summary { font-size: 0.88rem; color: var(--text-muted); margin-bottom: var(--space-4); font-style: italic; }
+  .commit-content { max-width: none; }
+  .empty-state { text-align: center; padding: var(--space-20) 0; color: var(--text-muted); }
+  .empty-state span { font-size: 2.5rem; display: block; margin-bottom: var(--space-4); }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(7,7,15,0.8); backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+    padding: var(--space-6); animation: fadeIn 200ms ease;
+  }
+  .modal-panel {
+    width: 100%; max-width: 780px; max-height: 85vh;
+    border-radius: var(--radius-xl); display: flex; flex-direction: column;
+    overflow: hidden; animation: fadeInUp 250ms ease;
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: var(--space-5) var(--space-6) 0;
+  }
+  .modal-type-badge {
+    display: inline-flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-1) var(--space-3); border-radius: var(--radius-full);
+    border: 1px solid; font-size: 0.75rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .modal-close {
+    width: 28px; height: 28px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border-normal); background: transparent;
+    color: var(--text-muted); cursor: pointer; font-size: 0.8rem;
+    display: flex; align-items: center; justify-content: center;
+    transition: all var(--transition-fast);
+  }
+  .modal-close:hover { color: var(--text-primary); border-color: var(--border-accent); background: var(--bg-elevated); }
+  .modal-title { font-size: 1.4rem; color: var(--text-primary); padding: var(--space-3) var(--space-6) 0; line-height: 1.3; }
+  .modal-body { flex: 1; overflow-y: auto; padding: var(--space-4) var(--space-6) var(--space-6); scrollbar-width: thin; }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .blueprint-layout {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto minmax(380px, 55vh);
+      height: auto;
+    }
+    .overview-panel { max-height: 320px; }
+  }
+</style>

@@ -1,0 +1,87 @@
+---
+title: "终于让 Lanczos 收敛了——重正交化的血泪史"
+date: 2026-04-15
+tags: ["lanczos", "numerical", "debugging", "floating-point"]
+visibility: "public"
+summary: "解决了 Lanczos 算法的数值不稳定问题，记录了三天的 debug 过程。"
+---
+
+今天是这个项目最痛苦也最爽的一天。
+
+## 现象
+
+之前的 Lanczos 实现跑 $L = 10$ 没问题，一升到 $L = 14$ 就开始出现**幽灵本征值（Ghost Eigenvalues）**——在真实谱线旁边出现根本不存在的伪简并。
+
+起初怀疑是哈密顿量构造出了问题，花了半天验证矩阵的厄密性（$H = H^\dagger$）：
+
+```python
+# 验证厄密性
+diff = H - H.conj().T
+print(f"Max Hermitian deviation: {abs(diff).max():.2e}")
+# Output: Max Hermitian deviation: 0.00e+00  ✓
+```
+
+矩阵完全厄密，那问题在 Lanczos 迭代本身。
+
+## 根因分析
+
+翻了三篇论文（Paige 1972, Cullum & Willoughby 1985, Saad 2011），终于搞明白了：
+
+Lanczos 迭代在理论上生成正交向量组 $\{|v_j\rangle\}$，但在**有限精度浮点运算**下，$j$ 增大后，新向量会不可避免地从已有向量里生长出分量：
+
+$$
+\langle v_j | v_k \rangle \neq 0 \quad (k < j, \; j \text{ 较大时})
+$$
+
+这导致 Krylov 子空间里出现"假维度"，进而产生伪本征值。这就是传说中的 **Lanczos Ghost** 问题。
+
+## 修复方案：完全重正交化（MGS）
+
+用**改进 Gram-Schmidt（Modified Gram-Schmidt）**在每步迭代后对新向量重正交化：
+
+```python
+def lanczos_reortho(H, m=200):
+    d = H.shape[0]
+    v = np.random.randn(d); v /= np.linalg.norm(v)
+    alphas, betas = [], []
+    V = [v]
+    
+    w = H @ v
+    alpha = v @ w; alphas.append(alpha)
+    w -= alpha * v
+
+    for j in range(1, m):
+        beta = np.linalg.norm(w)
+        if beta < 1e-12: break
+        betas.append(beta)
+        v_new = w / beta
+        
+        # ★ 关键：MGS 重正交化
+        for v_prev in V:
+            v_new -= (v_prev @ v_new) * v_prev
+        v_new /= np.linalg.norm(v_new)
+        
+        V.append(v_new)
+        w = H @ v_new
+        alpha = v_new @ w; alphas.append(alpha)
+        w -= alpha * v_new
+        w -= beta * V[-2]
+    
+    # ... 构造三对角矩阵并对角化
+```
+
+## 结果对比
+
+| 方法 | 基态能量 | 幽灵本征值数量 | 耗时(L=14) |
+|------|----------|----------------|------------|
+| 标准 Lanczos | $-6.2201$ | **17 个** | 0.8s |
+| MGS 重正交化 | $-6.2201$ | 0 个 ✓ | 2.1s |
+| SciPy ARPACK | $-6.2201$ | 0 个 ✓ | 1.3s |
+
+结果完全一致，证明我的实现正确。代价是 2.6 倍耗时，对于这个规模完全可以接受。
+
+## 一个意外收获
+
+在 debug 过程中发现：当 $m$（Krylov 维数）超过真实 Hilbert 空间维度的 $\sqrt{d}$ 时，收益边际递减，增大 $m$ 并不会提升精度，反而让重正交化开销爆炸。经验性地取 $m \approx \min(200, \sqrt{d})$ 是个好策略。
+
+明天开始做纠缠熵的计算，终点在望了。

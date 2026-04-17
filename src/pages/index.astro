@@ -1,0 +1,529 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+
+// Fetch all project index files (index.mdx at root of each project folder)
+const allEntries = await getCollection('projects');
+const projectIndexEntries = allEntries.filter(
+  (e) => e.id.endsWith('/index') || e.slug.endsWith('/index')
+);
+
+const projects = projectIndexEntries
+  .filter((e) => e.data.visibility !== 'private')
+  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
+  .map((e) => {
+    const projectSlug = e.slug.replace('/index', '');
+    const nodeCount = allEntries.filter(
+      (n) => n.slug.startsWith(projectSlug + '/nodes/')
+    ).length;
+    const commitCount = allEntries.filter(
+      (n) => n.slug.startsWith(projectSlug + '/commits/')
+    ).length;
+    return { ...e, projectSlug, nodeCount, commitCount };
+  });
+---
+
+<BaseLayout title="Digital Garden — Projects" description="A repo-centric personal homepage.万物皆可 Repo.">
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-grid-bg" aria-hidden="true"></div>
+    <div class="container hero-content">
+      <div class="hero-badge animate-fade-up">
+        <span class="badge-dot"></span>
+        开放探索中 · Open to Collaboration
+      </div>
+      <h1 class="hero-title animate-fade-up" style="animation-delay: 0.05s">
+        万物皆可<br /><span class="hero-title-accent">Repo</span>
+      </h1>
+      <p class="hero-description animate-fade-up" style="animation-delay: 0.1s">
+        不是博客，不是简历。<br />每一个想法都是一个仓库，每一次推导都是一次 Commit。
+      </p>
+      <div class="hero-actions animate-fade-up" style="animation-delay: 0.15s">
+        <a href="#projects" class="btn btn-primary">浏览项目</a>
+        <a href="/#about" class="btn btn-ghost">关于我</a>
+      </div>
+      <div class="hero-stats animate-fade-up" style="animation-delay: 0.2s">
+        <div class="stat">
+          <span class="stat-value">{projects.length}</span>
+          <span class="stat-label">Projects</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-value">{projects.reduce((s, p) => s + p.nodeCount, 0)}</span>
+          <span class="stat-label">Nodes</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-value">{projects.reduce((s, p) => s + p.commitCount, 0)}</span>
+          <span class="stat-label">Commits</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Projects Section -->
+  <section id="projects" class="projects-section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">
+          <span class="section-title-icon">⬡</span>
+          Projects
+        </h2>
+        <p class="section-subtitle">每个项目都有两种阅读方式：看清全局的蓝图，或深入思维的航海日志。</p>
+      </div>
+
+      {projects.length === 0 ? (
+        <div class="empty-state">
+          <span class="empty-icon">🌱</span>
+          <p>花园正在生长中，请稍后再来。</p>
+        </div>
+      ) : (
+        <div class="projects-grid">
+          {projects.map((project) => (
+            <a href={`/projects/${project.projectSlug}`} class="project-card glass" aria-label={`View project: ${project.data.title}`}>
+              <div class="card-header">
+                <div class="card-icon-wrap">
+                  <span class="card-icon">⬡</span>
+                </div>
+                <div class="card-status">
+                  <span class={`status-dot status-${project.data.status ?? 'active'}`}></span>
+                  <span class="status-label">{project.data.status ?? 'active'}</span>
+                </div>
+              </div>
+              <h3 class="card-title">{project.data.title}</h3>
+              <p class="card-description">{project.data.description}</p>
+              <div class="card-tags">
+                {(project.data.tags ?? []).slice(0, 4).map((tag) => (
+                  <span class="tag">{tag}</span>
+                ))}
+              </div>
+              <div class="card-footer">
+                <div class="card-meta">
+                  <span class="meta-item">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                    {project.nodeCount} nodes
+                  </span>
+                  <span class="meta-item">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                    {project.commitCount} commits
+                  </span>
+                </div>
+                <time class="card-date" datetime={project.data.date.toISOString()}>
+                  {project.data.date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' })}
+                </time>
+              </div>
+              <div class="card-arrow" aria-hidden="true">→</div>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  </section>
+
+  <!-- About Section -->
+  <section id="about" class="about-section">
+    <div class="container">
+      <div class="about-card glass">
+        <div class="about-avatar" aria-hidden="true">
+          <span class="avatar-char">S</span>
+        </div>
+        <div class="about-content">
+          <h2 class="about-name">Your Name</h2>
+          <p class="about-tagline">Physics × Code × Ideas</p>
+          <p class="about-bio">
+            量子物理研究者与全栈开发者。我用代码探索物理，用物理理解代码。
+            这个花园记录了我试错、推导、踩坑的完整轨迹——包括那些失败的版本。
+          </p>
+          <div class="about-links">
+            <a href="https://github.com" target="_blank" rel="noopener" class="about-link" aria-label="GitHub">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+              GitHub
+            </a>
+            <a href="mailto:hello@example.com" class="about-link" aria-label="Email">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+              Email
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  /* ── Hero ── */
+  .hero {
+    position: relative;
+    min-height: calc(100vh - var(--nav-height));
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  .hero-grid-bg {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(109, 141, 247, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(109, 141, 247, 0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%);
+  }
+
+  .hero-content {
+    position: relative;
+    padding: var(--space-20) var(--space-8);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    max-width: 700px;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    background: rgba(109, 141, 247, 0.1);
+    border: 1px solid var(--border-accent);
+    border-radius: var(--radius-full);
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--accent-primary);
+    width: fit-content;
+  }
+
+  .badge-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--node-logic);
+    box-shadow: 0 0 6px rgba(52, 211, 153, 0.8);
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  .hero-title {
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    line-height: 1.1;
+    letter-spacing: -0.04em;
+    color: var(--text-primary);
+  }
+
+  .hero-title-accent {
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-description {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    line-height: 1.8;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-3) var(--space-6);
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all var(--transition-normal);
+    cursor: pointer;
+  }
+
+  .btn-primary {
+    background: var(--accent-primary);
+    color: #fff;
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+  .btn-primary:hover {
+    background: var(--accent-secondary);
+    color: #fff;
+    box-shadow: 0 0 30px var(--accent-glow-strong);
+    transform: translateY(-1px);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-normal);
+  }
+  .btn-ghost:hover {
+    color: var(--text-primary);
+    border-color: var(--border-accent);
+    background: var(--bg-elevated);
+  }
+
+  .hero-stats {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    padding-top: var(--space-4);
+  }
+
+  .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--text-primary); line-height: 1; }
+  .stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .stat-divider { width: 1px; height: 36px; background: var(--border-subtle); }
+
+  /* ── Projects ── */
+  .projects-section {
+    padding: var(--space-20) 0;
+  }
+
+  .section-header {
+    margin-bottom: var(--space-10);
+  }
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: 1.75rem;
+    color: var(--text-primary);
+    margin-bottom: var(--space-3);
+  }
+
+  .section-title-icon {
+    color: var(--accent-primary);
+    font-size: 1.25rem;
+  }
+
+  .section-subtitle {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    max-width: 60ch;
+  }
+
+  .projects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: var(--space-5);
+  }
+
+  .project-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-6);
+    border-radius: var(--radius-lg);
+    color: var(--text-primary);
+    transition: all var(--transition-normal);
+    overflow: hidden;
+  }
+
+  .project-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(109, 141, 247, 0.06) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity var(--transition-normal);
+  }
+
+  .project-card:hover {
+    border-color: var(--border-accent);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg), 0 0 30px var(--accent-glow);
+  }
+
+  .project-card:hover::before { opacity: 1; }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .card-icon-wrap {
+    width: 36px; height: 36px;
+    background: rgba(109, 141, 247, 0.1);
+    border: 1px solid var(--border-accent);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    color: var(--accent-primary);
+  }
+
+  .card-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .status-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: capitalize;
+  }
+
+  .card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.3;
+    transition: color var(--transition-fast);
+  }
+
+  .project-card:hover .card-title { color: var(--accent-primary); }
+
+  .card-description {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .card-meta {
+    display: flex;
+    gap: var(--space-4);
+  }
+
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .card-date {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .card-arrow {
+    position: absolute;
+    top: var(--space-6);
+    right: var(--space-6);
+    color: var(--accent-primary);
+    opacity: 0;
+    transform: translateX(-6px);
+    transition: all var(--transition-normal);
+    font-size: 1.1rem;
+  }
+
+  .project-card:hover .card-arrow {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: var(--space-20) 0;
+    color: var(--text-muted);
+  }
+
+  .empty-icon { font-size: 3rem; display: block; margin-bottom: var(--space-4); }
+
+  /* ── About ── */
+  .about-section { padding: var(--space-20) 0; }
+
+  .about-card {
+    display: flex;
+    gap: var(--space-8);
+    padding: var(--space-10);
+    border-radius: var(--radius-xl);
+    align-items: flex-start;
+  }
+
+  .about-avatar {
+    flex-shrink: 0;
+    width: 80px; height: 80px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+
+  .avatar-char {
+    font-size: 2rem;
+    font-weight: 700;
+    color: white;
+  }
+
+  .about-content { flex: 1; }
+
+  .about-name {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+    margin-bottom: var(--space-1);
+  }
+
+  .about-tagline {
+    font-size: 0.9rem;
+    color: var(--accent-primary);
+    font-weight: 500;
+    margin-bottom: var(--space-4);
+  }
+
+  .about-bio {
+    color: var(--text-secondary);
+    line-height: 1.8;
+    margin-bottom: var(--space-6);
+    max-width: 60ch;
+  }
+
+  .about-links {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  .about-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-normal);
+    transition: all var(--transition-fast);
+  }
+
+  .about-link:hover {
+    color: var(--accent-primary);
+    border-color: var(--border-accent);
+    background: rgba(109, 141, 247, 0.08);
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    .projects-grid { grid-template-columns: 1fr; }
+    .about-card { flex-direction: column; gap: var(--space-6); padding: var(--space-6); }
+    .hero-stats { gap: var(--space-4); }
+  }
+</style>

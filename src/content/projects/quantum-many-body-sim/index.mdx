@@ -1,0 +1,39 @@
+---
+title: "量子多体模拟：Lanczos 精确对角化"
+description: "尝试用 Lanczos 算法对一维海森堡哈密顿量进行精确对角化，提取低能谱与纠缠熵。这是理解量子多体系统的入门实验，也是后续变分蒙特卡洛工作的基准。"
+date: 2026-04-13
+status: "active"
+visibility: "public"
+tags: ["quantum physics", "many-body", "python", "lanczos", "exact diagonalization"]
+links:
+  github: "https://github.com/example/quantum-many-body-sim"
+---
+
+## 核心结论
+
+经过约三周的推导与实现，本项目成功对 $L=12$ 格点的一维**海森堡反铁磁模型**完成了精确对角化（ED）。
+
+$$
+\hat{H} = J \sum_{i} \mathbf{S}_i \cdot \mathbf{S}_{i+1}, \quad J > 0
+$$
+
+主要发现：
+
+1. **基态能量** 与已知的 Bethe Ansatz 精确解误差 $< 0.01\%$，验证了算法的正确性。
+2. **纠缠熵** 满足面积律（Area Law）$S \sim \text{const}$，符合一维无质量费米子理论预测。
+3. **谱隙**（Spectral Gap）在热力学极限下趋近于零，与 Mermin-Wagner 定理一致。
+
+## 技术栈
+
+| 组件 | 工具 |
+|------|------|
+| 数值线代 | NumPy / SciPy sparse |
+| 稀疏矩阵 | `scipy.sparse.linalg.eigsh` |
+| 可视化 | Matplotlib + Seaborn |
+| 环境管理 | conda |
+
+## 未解决的问题
+
+- [ ] 推广到二维正方晶格（Hilbert 空间维度爆炸）
+- [ ] 添加周期性边界条件的完整支持
+- [ ] 对比 DMRG 结果验证精度

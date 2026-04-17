@@ -1,0 +1,80 @@
+---
+id: "lanczos-algorithm"
+title: "Lanczos 算法的数值对角化"
+date: 2026-05-12
+type: "code"
+status: "verified"
+parents: ["hamiltonian"]
+visibility: "public"
+description: "实现 Lanczos 迭代算法，提取大规模稀疏哈密顿量的低能本征值谱，无需完整对角化。"
+---
+
+## 为什么用 Lanczos？
+
+完整对角化的时间复杂度是 $\mathcal{O}(d^3)$，$d = 2^L$。对于 $L=20$，$d \approx 10^6$，需要存储一个 $10^6 \times 10^6$ 的矩阵，在任何普通硬件上都不可行。
+
+Lanczos 方法是一种**Krylov 子空间**迭代法：从一个随机初始向量 $|v_0\rangle$ 出发，构造 $m \ll d$ 维的 Krylov 子空间 $\mathcal{K}_m$，在该子空间内求解哈密顿量的低本征值。
+
+## 算法流程
+
+**输入**：稀疏矩阵 $H$，Krylov 维数 $m$
+
+1. 随机初始化 $|v_0\rangle$，归一化
+2. 对 $j = 0, 1, \ldots, m-1$：
+   - $|w\rangle = H|v_j\rangle$
+   - $\alpha_j = \langle v_j | w \rangle$（对角元）
+   - $|w\rangle \leftarrow |w\rangle - \alpha_j |v_j\rangle - \beta_{j-1}|v_{j-1}\rangle$
+   - $\beta_j = \|w\|$（次对角元）
+   - $|v_{j+1}\rangle = |w\rangle / \beta_j$
+3. 对三对角矩阵 $T_m$（由 $\alpha_j, \beta_j$ 构成）求解完整本征问题
+
+$$
+T_m = \begin{pmatrix} \alpha_0 & \beta_0 & & \\ \beta_0 & \alpha_1 & \beta_1 & \\ & \ddots & \ddots & \ddots \end{pmatrix}
+$$
+
+```python
+def lanczos(H: sparse.csr_matrix, m: int = 200) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Lanczos 迭代，返回低能本征值和本征态。
+    
+    Returns:
+        eigenvalues: shape (m,), 升序排列
+        eigenvectors: shape (d, m), 列向量为对应本征态
+    """
+    d = H.shape[0]
+    # 随机初始向量
+    v = np.random.randn(d)
+    v /= np.linalg.norm(v)
+    
+    alphas, betas = [], []
+    V = np.zeros((d, m + 1))  # Lanczos 向量
+    V[:, 0] = v
+    
+    for j in range(m):
+        w = H @ V[:, j]
+        alpha = V[:, j] @ w
+        alphas.append(alpha)
+        
+        w -= alpha * V[:, j]
+        if j > 0:
+            w -= betas[-1] * V[:, j - 1]
+        
+        beta = np.linalg.norm(w)
+        betas.append(beta)
+        
+        if beta < 1e-12:  # 提前收敛
+            m = j + 1; break
+        V[:, j + 1] = w / beta
+    
+    # 构造并对角化三对角矩阵
+    T = np.diag(alphas) + np.diag(betas[:-1], 1) + np.diag(betas[:-1], -1)
+    evals, evecs = np.linalg.eigh(T)
+    
+    # 将本征态变换回原始空间
+    eigvecs = V[:, :m] @ evecs
+    return evals, eigvecs
+```
+
+## 数值稳定性
+
+标准 Lanczos 会出现**重正交化（re-orthogonalization）**问题：由于浮点误差，后期 Lanczos 向量会失去正交性，导致伪本征值出现。实践中使用**完全重正交化（Full Reorthogonalization）**或 **Selective Reorthogonalization** 修复此问题。
