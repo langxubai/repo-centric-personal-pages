@@ -71,6 +71,8 @@ const edges: GraphEdge[] = renderedNodes.flatMap((n) =>
 
 const meta = indexEntry?.data;
 const pageTitle = meta?.title ?? project;
+const baseUrl = import.meta.env.BASE_URL;
+const homeHref = baseUrl;
 ---
 
 <BaseLayout
@@ -105,7 +107,7 @@ const pageTitle = meta?.title ?? project;
     <header class="project-header">
       <div class="container">
         <nav class="breadcrumb" aria-label="Breadcrumb">
-          <a href="/" class="breadcrumb-link">Projects</a>
+          <a href={homeHref} class="breadcrumb-link">Projects</a>
           <span class="breadcrumb-sep" aria-hidden="true">/</span>
           <span class="breadcrumb-current">{project}</span>
         </nav>

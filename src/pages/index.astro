@@ -21,6 +21,11 @@ const projects = projectIndexEntries
     ).length;
     return { ...e, projectSlug, nodeCount, commitCount };
   });
+
+const baseUrl = import.meta.env.BASE_URL;
+const projectsSectionHref = `${baseUrl}#projects`;
+const aboutHref = `${baseUrl}#about`;
+const projectHref = (slug: string) => `${baseUrl}projects/${slug}/`;
 ---
 
 <BaseLayout title="Digital Garden — Projects" description="A repo-centric personal homepage.万物皆可 Repo.">
@@ -39,8 +44,8 @@ const projects = projectIndexEntries
         不是博客，不是简历。<br />每一个想法都是一个仓库，每一次推导都是一次 Commit。
       </p>
       <div class="hero-actions animate-fade-up" style="animation-delay: 0.15s">
-        <a href="#projects" class="btn btn-primary">浏览项目</a>
-        <a href="/#about" class="btn btn-ghost">关于我</a>
+        <a href={projectsSectionHref} class="btn btn-primary">浏览项目</a>
+        <a href={aboutHref} class="btn btn-ghost">关于我</a>
       </div>
       <div class="hero-stats animate-fade-up" style="animation-delay: 0.2s">
         <div class="stat">
@@ -80,7 +85,7 @@ const projects = projectIndexEntries
       ) : (
         <div class="projects-grid">
           {projects.map((project) => (
-            <a href={`/projects/${project.projectSlug}`} class="project-card glass" aria-label={`View project: ${project.data.title}`}>
+            <a href={projectHref(project.projectSlug)} class="project-card glass" aria-label={`View project: ${project.data.title}`}>
               <div class="card-header">
                 <div class="card-icon-wrap">
                   <span class="card-icon">⬡</span>

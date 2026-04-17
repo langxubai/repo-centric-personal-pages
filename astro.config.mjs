@@ -16,9 +16,8 @@ export default defineConfig({
       langs: [],
     },
   },
-  // For GitHub Pages: set base to your repo name if not a user/org site
-  // e.g., base: '/repo-centric-personal-pages'
-  // Leave as '/' if deploying to username.github.io
-  base: '/repo-centric-personal-pages',
+  // This site is deployed under the repository subpath on GitHub Pages.
+  base: '/repo-centric-personal-pages/',
   output: 'static',
+  trailingSlash: 'always',
 });
