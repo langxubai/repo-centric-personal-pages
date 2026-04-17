@@ -1,5 +1,5 @@
 ---
-import { getCollection } from 'astro:content';
+import { getCollection, render } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ViewToggle from '../../components/ViewToggle';
 import TopologyCanvas from '../../components/TopologyCanvas';
@@ -8,7 +8,7 @@ import type { GraphEdge } from '../../components/TopologyCanvas';
 export async function getStaticPaths() {
   const allEntries = await getCollection('projects');
   const projectSlugs = new Set<string>();
-  allEntries.forEach((e) => projectSlugs.add(e.slug.split('/')[0]));
+  allEntries.forEach((e) => projectSlugs.add(e.id.split('/')[0]));
   return Array.from(projectSlugs).map((project) => ({ params: { project } }));
 }
 
@@ -16,27 +16,27 @@ const { project } = Astro.params;
 const allEntries = await getCollection('projects');
 
 const projectEntries = allEntries.filter(
-  (e) => e.slug.startsWith(project + '/') && e.data.visibility !== 'private'
+  (e) => e.id.startsWith(project + '/') && e.data.visibility !== 'private'
 );
 
 // ── Index entry ─────────────────────────────────────────────────────────────
-const indexEntry = projectEntries.find((e) => e.slug === `${project}/index`);
+const indexEntry = projectEntries.find((e) => e.id === `${project}`);
 const { Content: IndexContent } = indexEntry
-  ? await indexEntry.render()
+  ? await render(indexEntry)
   : { Content: null };
 
 // ── Node entries ─────────────────────────────────────────────────────────────
-const nodeEntries = projectEntries.filter((e) => e.slug.includes('/nodes/'));
+const nodeEntries = projectEntries.filter((e) => e.id.includes('/nodes/'));
 const renderedNodes = await Promise.all(
   nodeEntries.map(async (e) => {
-    const { Content } = await e.render();
+    const { Content } = await render(e);
     return {
-      id: e.data.id ?? e.slug.split('/').pop() ?? e.slug,
+      id: e.data.id ?? e.id.split('/').pop() ?? e.id,
       title: e.data.title,
       type: (e.data.type ?? 'logic') as 'math' | 'code' | 'logic' | 'bugfix',
       status: (e.data.status ?? 'draft') as 'draft' | 'in-progress' | 'verified' | 'failed',
       description: e.data.description,
-      slug: e.slug,
+      slug: e.id,
       parents: e.data.parents ?? [],
       Content,
     };
@@ -45,11 +45,11 @@ const renderedNodes = await Promise.all(
 
 // ── Commit entries ───────────────────────────────────────────────────────────
 const commitEntries = projectEntries
-  .filter((e) => e.slug.includes('/commits/'))
+  .filter((e) => e.id.includes('/commits/'))
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime());
 const renderedCommits = await Promise.all(
   commitEntries.map(async (e) => {
-    const { Content } = await e.render();
+    const { Content } = await render(e);
     return {
       title: e.data.title,
       date: e.data.date.toISOString(),

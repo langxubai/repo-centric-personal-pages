@@ -5,19 +5,19 @@ import { getCollection } from 'astro:content';
 // Fetch all project index files (index.mdx at root of each project folder)
 const allEntries = await getCollection('projects');
 const projectIndexEntries = allEntries.filter(
-  (e) => e.id.endsWith('/index') || e.slug.endsWith('/index')
+  (e) => !e.id.includes('/nodes/') && !e.id.includes('/commits/')
 );
 
 const projects = projectIndexEntries
   .filter((e) => e.data.visibility !== 'private')
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
   .map((e) => {
-    const projectSlug = e.slug.replace('/index', '');
+    const projectSlug = e.id;
     const nodeCount = allEntries.filter(
-      (n) => n.slug.startsWith(projectSlug + '/nodes/')
+      (n) => n.id.startsWith(projectSlug + '/nodes/')
     ).length;
     const commitCount = allEntries.filter(
-      (n) => n.slug.startsWith(projectSlug + '/commits/')
+      (n) => n.id.startsWith(projectSlug + '/commits/')
     ).length;
     return { ...e, projectSlug, nodeCount, commitCount };
   });
