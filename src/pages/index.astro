@@ -15,13 +15,74 @@ const projects = projectIndexEntries
     const nodeCount = allEntries.filter(
       (n) => n.id.startsWith(projectSlug + '/nodes/')
     ).length;
-    const commitCount = allEntries.filter(
+    const commitEntries = allEntries.filter(
       (n) => n.id.startsWith(projectSlug + '/commits/')
-    ).length;
-    return { ...e, projectSlug, nodeCount, commitCount };
+    );
+    const commitCount = commitEntries.length;
+    // Collect commit dates for the contribution graph
+    const commitDates: string[] = commitEntries.map((c) =>
+      (c.data.date as Date).toISOString().slice(0, 10)
+    );
+    return { ...e, projectSlug, nodeCount, commitCount, commitDates };
   });
 
 const publicProjects = projects.filter((p) => p.data.visibility !== 'private');
+
+// Pinned: first 6 public projects
+const pinnedProjects = publicProjects.slice(0, 6);
+
+// Build contribution map: date -> count (all commits across all projects)
+const commitDateMap: Record<string, number> = {};
+for (const p of projects) {
+  for (const d of (p.commitDates ?? [])) {
+    commitDateMap[d] = (commitDateMap[d] ?? 0) + 1;
+  }
+}
+
+// Total commits in last year
+const oneYearAgo = new Date();
+oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+const totalContributions = Object.entries(commitDateMap)
+  .filter(([d]) => new Date(d) >= oneYearAgo)
+  .reduce((sum, [, count]) => sum + count, 0);
+
+// Build 53-week grid starting from Sunday ~52 weeks ago
+function buildWeekGrid() {
+  const today = new Date();
+  // Align to the most recent Sunday
+  const dayOfWeek = today.getDay(); // 0=Sun
+  const startDate = new Date(today);
+  startDate.setDate(today.getDate() - dayOfWeek - 52 * 7);
+
+  const weeks: { date: string; count: number }[][] = [];
+  let week: { date: string; count: number }[] = [];
+  const cursor = new Date(startDate);
+  for (let i = 0; i < 53 * 7; i++) {
+    const iso = cursor.toISOString().slice(0, 10);
+    week.push({ date: iso, count: commitDateMap[iso] ?? 0 });
+    cursor.setDate(cursor.getDate() + 1);
+    if (week.length === 7) {
+      weeks.push(week);
+      week = [];
+    }
+  }
+  if (week.length) weeks.push(week);
+  return weeks;
+}
+const weekGrid = buildWeekGrid();
+
+// Month labels for the grid header
+const monthLabels: { label: string; col: number }[] = [];
+{
+  let lastMonth = -1;
+  weekGrid.forEach((week, wi) => {
+    const m = new Date(week[0].date).getMonth();
+    if (m !== lastMonth) {
+      monthLabels.push({ label: new Date(week[0].date).toLocaleString('en-US', { month: 'short' }), col: wi + 1 });
+      lastMonth = m;
+    }
+  });
+}
 
 const baseUrl = import.meta.env.BASE_URL;
 const projectHref = (slug: string) => `${baseUrl}projects/${slug}/`;
@@ -63,6 +124,14 @@ function timeAgo(date: Date): string {
   if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
   if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
   return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+}
+
+function commitColor(count: number): string {
+  if (count === 0) return 'var(--contrib-0)';
+  if (count <= 2) return 'var(--contrib-1)';
+  if (count <= 4) return 'var(--contrib-2)';
+  if (count <= 8) return 'var(--contrib-3)';
+  return 'var(--contrib-4)';
 }
 ---
 
@@ -123,114 +192,235 @@ function timeAgo(date: Date): string {
     <main class="gh-main">
       <!-- Tab bar -->
       <nav class="gh-tabs" aria-label="Profile navigation">
-        <a href="#" class="gh-tab">
+        <button id="tab-overview" class="gh-tab gh-tab-active" type="button">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Z"/></svg>
           Overview
-        </a>
-        <a href="#" class="gh-tab gh-tab-active">
+        </button>
+        <button id="tab-projects" class="gh-tab" type="button">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Z"/></svg>
           Projects
           <span class="gh-tab-count">{publicProjects.length}</span>
-        </a>
-        <a href="#" class="gh-tab">
+        </button>
+        <button id="tab-stars" class="gh-tab" type="button">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z"/></svg>
           Stars
-        </a>
+        </button>
       </nav>
 
-      <!-- Search / filters bar -->
-      <div class="repo-filters">
-        <div class="repo-search-wrap">
-          <svg class="search-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215ZM11.5 7a4.499 4.499 0 1 0-8.997 0A4.499 4.499 0 0 0 11.5 7Z"/></svg>
-          <input id="repo-search" type="text" placeholder="Find a repository..." class="repo-search" aria-label="Find a repository" />
-        </div>
-        <div class="filter-row">
-          <button class="gh-btn gh-btn-sm gh-btn-outline" type="button">
-            Type
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"/></svg>
-          </button>
-          <button class="gh-btn gh-btn-sm gh-btn-outline" type="button">
-            Language
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"/></svg>
-          </button>
-          <button class="gh-btn gh-btn-sm gh-btn-outline" type="button">
-            Sort
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"/></svg>
-          </button>
-          <button class="gh-btn gh-btn-sm gh-btn-green" type="button">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"/></svg>
-            New
-          </button>
-        </div>
-      </div>
+      <!-- ══ OVERVIEW PANEL ═══════════════════════════════════════════════ -->
+      <section id="panel-overview" class="tab-panel">
 
-      <!-- Repo list -->
-      <ul class="repo-list" id="repo-list" aria-label="Projects">
-        {projects.map((project) => {
-          const lang = getLangColor(project.data.tags ?? []);
-          const isPrivate = project.data.visibility === 'private';
-          return (
-            <li class="repo-item" data-name={project.data.title.toLowerCase()} data-slug={project.projectSlug.toLowerCase()}>
-              <div class="repo-item-main">
-                <div class="repo-name-row">
-                  <svg class="repo-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8v9.62a3.498 3.498 0 0 1 2.5-.62h5.5Z"/></svg>
-                  <a href={isPrivate ? '#' : projectHref(project.projectSlug)} class="repo-name" aria-label={`View ${project.data.title}`}>
-                    {project.data.title}
+        <!-- Pinned repos grid -->
+        {pinnedProjects.length > 0 && (
+          <div class="pinned-section">
+            <div class="pinned-header">
+              <h2 class="pinned-title">Pinned</h2>
+            </div>
+            <div class="pinned-grid">
+              {pinnedProjects.map((project) => {
+                const lang = getLangColor(project.data.tags ?? []);
+                const isPrivate = project.data.visibility === 'private';
+                return (
+                  <a
+                    href={isPrivate ? '#' : projectHref(project.projectSlug)}
+                    class="pinned-card"
+                    aria-label={`View ${project.data.title}`}
+                  >
+                    <div class="pinned-card-header">
+                      <svg class="pinned-repo-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8v9.62a3.498 3.498 0 0 1 2.5-.62h5.5Z"/></svg>
+                      <span class="pinned-card-name">{project.data.title}</span>
+                      <span class={`repo-visibility-badge ${isPrivate ? 'badge-private' : 'badge-public'}`}>
+                        {isPrivate ? 'Private' : 'Public'}
+                      </span>
+                    </div>
+                    {project.data.description && (
+                      <p class="pinned-card-desc">{project.data.description}</p>
+                    )}
+                    <div class="pinned-card-meta">
+                      {lang && (
+                        <span class="repo-lang">
+                          <span class="lang-dot" style={`background:${lang.color}`}></span>
+                          {lang.name}
+                        </span>
+                      )}
+                      {project.commitCount > 0 && (
+                        <span class="repo-meta-item">
+                          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5Zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0Z"/></svg>
+                          {project.commitCount}
+                        </span>
+                      )}
+                    </div>
                   </a>
-                  <span class={`repo-visibility-badge ${isPrivate ? 'badge-private' : 'badge-public'}`}>
-                    {isPrivate ? 'Private' : 'Public'}
-                  </span>
-                </div>
-                {project.data.description && (
-                  <p class="repo-desc">{project.data.description}</p>
-                )}
-                <div class="repo-meta">
-                  {lang && (
-                    <span class="repo-lang">
-                      <span class="lang-dot" style={`background:${lang.color}`}></span>
-                      {lang.name}
-                    </span>
-                  )}
-                  {project.nodeCount > 0 && (
-                    <span class="repo-meta-item">
-                      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5 6s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3Z"/></svg>
-                      {project.nodeCount} nodes
-                    </span>
-                  )}
-                  {project.commitCount > 0 && (
-                    <span class="repo-meta-item">
-                      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5Zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0Z"/></svg>
-                      {project.commitCount} commits
-                    </span>
-                  )}
-                  <span class="repo-updated">
-                    Updated {timeAgo(project.data.date)}
-                  </span>
-                </div>
-              </div>
-              <div class="repo-item-aside">
-                <button class="gh-btn gh-btn-sm gh-btn-outline repo-star-btn" type="button" aria-label={`Star ${project.data.title}`}>
-                  <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
-                  Star
-                </button>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
-      {projects.length === 0 && (
-        <div class="repo-empty">
-          <svg width="40" height="40" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Z"/></svg>
-          <p>No projects yet. Create your first repository!</p>
+        <!-- Contribution graph -->
+        <div class="contrib-section">
+          <div class="contrib-header">
+            <span class="contrib-title">{totalContributions} contributions in the last year</span>
+          </div>
+          <div class="contrib-graph-wrap">
+            <!-- Month labels -->
+            <div class="contrib-month-row">
+              {monthLabels.map((m) => (
+                <span class="contrib-month" style={`grid-column: ${m.col}`}>{m.label}</span>
+              ))}
+            </div>
+            <!-- Day grid -->
+            <div class="contrib-grid">
+              {weekGrid.map((week) => (
+                <div class="contrib-week">
+                  {week.map((day) => (
+                    <div
+                      class="contrib-cell"
+                      style={`background:${commitColor(day.count)}`}
+                      title={`${day.count} commit${day.count !== 1 ? 's' : ''} on ${day.date}`}
+                      aria-label={`${day.count} contributions on ${day.date}`}
+                    ></div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <!-- Legend -->
+            <div class="contrib-legend">
+              <span>Less</span>
+              <span class="legend-cell" style="background:var(--contrib-0)"></span>
+              <span class="legend-cell" style="background:var(--contrib-1)"></span>
+              <span class="legend-cell" style="background:var(--contrib-2)"></span>
+              <span class="legend-cell" style="background:var(--contrib-3)"></span>
+              <span class="legend-cell" style="background:var(--contrib-4)"></span>
+              <span>More</span>
+            </div>
+          </div>
         </div>
-      )}
+
+      </section>
+
+      <!-- ══ PROJECTS PANEL ════════════════════════════════════════════════ -->
+      <section id="panel-projects" class="tab-panel" hidden>
+        <!-- Search / filters bar -->
+        <div class="repo-filters">
+          <div class="repo-search-wrap">
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215ZM11.5 7a4.499 4.499 0 1 0-8.997 0A4.499 4.499 0 0 0 11.5 7Z"/></svg>
+            <input id="repo-search" type="text" placeholder="Find a repository..." class="repo-search" aria-label="Find a repository" />
+          </div>
+          <div class="filter-row">
+            <button class="gh-btn gh-btn-sm gh-btn-outline" type="button">
+              Type
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"/></svg>
+            </button>
+            <button class="gh-btn gh-btn-sm gh-btn-outline" type="button">
+              Language
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"/></svg>
+            </button>
+            <button class="gh-btn gh-btn-sm gh-btn-outline" type="button">
+              Sort
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"/></svg>
+            </button>
+            <button class="gh-btn gh-btn-sm gh-btn-green" type="button">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"/></svg>
+              New
+            </button>
+          </div>
+        </div>
+
+        <!-- Repo list -->
+        <ul class="repo-list" id="repo-list" aria-label="Projects">
+          {projects.map((project) => {
+            const lang = getLangColor(project.data.tags ?? []);
+            const isPrivate = project.data.visibility === 'private';
+            return (
+              <li class="repo-item" data-name={project.data.title.toLowerCase()} data-slug={project.projectSlug.toLowerCase()}>
+                <div class="repo-item-main">
+                  <div class="repo-name-row">
+                    <svg class="repo-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8v9.62a3.498 3.498 0 0 1 2.5-.62h5.5Z"/></svg>
+                    <a href={isPrivate ? '#' : projectHref(project.projectSlug)} class="repo-name" aria-label={`View ${project.data.title}`}>
+                      {project.data.title}
+                    </a>
+                    <span class={`repo-visibility-badge ${isPrivate ? 'badge-private' : 'badge-public'}`}>
+                      {isPrivate ? 'Private' : 'Public'}
+                    </span>
+                  </div>
+                  {project.data.description && (
+                    <p class="repo-desc">{project.data.description}</p>
+                  )}
+                  <div class="repo-meta">
+                    {lang && (
+                      <span class="repo-lang">
+                        <span class="lang-dot" style={`background:${lang.color}`}></span>
+                        {lang.name}
+                      </span>
+                    )}
+                    {project.nodeCount > 0 && (
+                      <span class="repo-meta-item">
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5 6s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3Z"/></svg>
+                        {project.nodeCount} nodes
+                      </span>
+                    )}
+                    {project.commitCount > 0 && (
+                      <span class="repo-meta-item">
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5Zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0Z"/></svg>
+                        {project.commitCount} commits
+                      </span>
+                    )}
+                    <span class="repo-updated">
+                      Updated {timeAgo(project.data.date)}
+                    </span>
+                  </div>
+                </div>
+                <div class="repo-item-aside">
+                  <button class="gh-btn gh-btn-sm gh-btn-outline repo-star-btn" type="button" aria-label={`Star ${project.data.title}`}>
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
+                    Star
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+
+        {projects.length === 0 && (
+          <div class="repo-empty">
+            <svg width="40" height="40" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Z"/></svg>
+            <p>No projects yet. Create your first repository!</p>
+          </div>
+        )}
+      </section>
+
+      <!-- ══ STARS PANEL ═══════════════════════════════════════════════════ -->
+      <section id="panel-stars" class="tab-panel" hidden>
+        <div class="repo-empty">
+          <svg width="40" height="40" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
+          <p>No starred repositories yet.</p>
+        </div>
+      </section>
     </main>
   </div>
 </BaseLayout>
 
 <script>
-  // Client-side search filter
+  // ── Tab switching ─────────────────────────────────────────────────────
+  const tabs = [
+    { btn: document.getElementById('tab-overview'),  panel: document.getElementById('panel-overview') },
+    { btn: document.getElementById('tab-projects'),  panel: document.getElementById('panel-projects') },
+    { btn: document.getElementById('tab-stars'),     panel: document.getElementById('panel-stars') },
+  ];
+
+  tabs.forEach(({ btn, panel }) => {
+    btn?.addEventListener('click', () => {
+      tabs.forEach(({ btn: b, panel: p }) => {
+        b?.classList.remove('gh-tab-active');
+        if (p) p.hidden = true;
+      });
+      btn.classList.add('gh-tab-active');
+      if (panel) panel.hidden = false;
+    });
+  });
+
+  // ── Client-side search filter (Projects tab) ──────────────────────────
   const searchInput = document.getElementById('repo-search') as HTMLInputElement | null;
   const repoItems = document.querySelectorAll<HTMLElement>('.repo-item');
 
@@ -245,6 +435,15 @@ function timeAgo(date: Date): string {
 </script>
 
 <style>
+  /* ── Contribution colour tokens ─────────────────────────────────────── */
+  :root {
+    --contrib-0: #161b22;
+    --contrib-1: #0e4429;
+    --contrib-2: #006d32;
+    --contrib-3: #26a641;
+    --contrib-4: #39d353;
+  }
+
   /* ── Layout ─────────────────────────────────────────────────────────── */
   .gh-layout {
     display: grid;
@@ -456,9 +655,16 @@ function timeAgo(date: Date): string {
     font-weight: 500;
     color: var(--text-muted);
     border-bottom: 2px solid transparent;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
     margin-bottom: -1px;
     transition: all var(--transition-fast);
     white-space: nowrap;
+    background: transparent;
+    cursor: pointer;
+    font-family: var(--font-sans);
   }
 
   .gh-tab:hover {
@@ -692,6 +898,178 @@ function timeAgo(date: Date): string {
     font-size: 0.9rem;
   }
 
+  /* ── Tab panels ─────────────────────────────────────────────────────── */
+  .tab-panel[hidden] { display: none; }
+
+  /* ── Pinned section ──────────────────────────────────────────────────── */
+  .pinned-section {
+    margin-bottom: var(--space-8);
+  }
+
+  .pinned-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
+  }
+
+  .pinned-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.01em;
+  }
+
+  .pinned-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-4);
+  }
+
+  .pinned-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border: 1px solid var(--border-normal);
+    border-radius: var(--radius-md);
+    background: var(--bg-elevated);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+    text-decoration: none;
+    color: inherit;
+    min-height: 110px;
+  }
+
+  .pinned-card:hover {
+    border-color: var(--border-accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+    background: var(--bg-hover);
+  }
+
+  .pinned-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .pinned-repo-icon {
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .pinned-card-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--accent-primary);
+    transition: color var(--transition-fast);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .pinned-card:hover .pinned-card-name {
+    color: var(--accent-secondary);
+  }
+
+  .pinned-card-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin: 0;
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .pinned-card-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-top: auto;
+  }
+
+  /* ── Contribution graph ─────────────────────────────────────────────── */
+  .contrib-section {
+    margin-bottom: var(--space-6);
+  }
+
+  .contrib-header {
+    margin-bottom: var(--space-3);
+  }
+
+  .contrib-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .contrib-graph-wrap {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    background: var(--bg-elevated);
+    overflow-x: auto;
+  }
+
+  .contrib-month-row {
+    display: grid;
+    grid-template-columns: repeat(53, 13px);
+    gap: 3px;
+    margin-bottom: 4px;
+    margin-left: 0;
+  }
+
+  .contrib-month {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .contrib-grid {
+    display: flex;
+    gap: 3px;
+  }
+
+  .contrib-week {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .contrib-cell {
+    width: 13px;
+    height: 13px;
+    border-radius: 2px;
+    transition: transform 0.1s;
+    cursor: default;
+  }
+
+  .contrib-cell:hover {
+    transform: scale(1.3);
+    outline: 1px solid rgba(255,255,255,0.3);
+  }
+
+  .contrib-legend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: var(--space-3);
+    justify-content: flex-end;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+  }
+
+  .legend-cell {
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+
   /* ── Responsive ──────────────────────────────────────────────────── */
   @media (max-width: 900px) {
     .gh-layout {
@@ -733,6 +1111,10 @@ function timeAgo(date: Date): string {
 
     .filter-row {
       justify-content: flex-end;
+    }
+
+    .pinned-grid {
+      grid-template-columns: 1fr;
     }
   }
 </style>
