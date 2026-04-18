@@ -9,7 +9,6 @@ const projectIndexEntries = allEntries.filter(
 );
 
 const projects = projectIndexEntries
-  .filter((e) => e.data.visibility !== 'private')
   .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
   .map((e) => {
     const projectSlug = e.id;
@@ -22,513 +21,718 @@ const projects = projectIndexEntries
     return { ...e, projectSlug, nodeCount, commitCount };
   });
 
+const publicProjects = projects.filter((p) => p.data.visibility !== 'private');
+
 const baseUrl = import.meta.env.BASE_URL;
-const projectsSectionHref = `${baseUrl}#projects`;
-const aboutHref = `${baseUrl}#about`;
 const projectHref = (slug: string) => `${baseUrl}projects/${slug}/`;
+
+// Language color map (similar to GitHub's)
+const langColors: Record<string, string> = {
+  python:     '#3572A5',
+  typescript: '#3178c6',
+  javascript: '#f1e05a',
+  rust:       '#dea584',
+  go:         '#00ADD8',
+  cpp:        '#f34b7d',
+  c:          '#555555',
+  julia:      '#a270ba',
+  matlab:     '#e16737',
+  tex:        '#3D6117',
+  astro:      '#ff5a03',
+  react:      '#61dafb',
+  physics:    '#a78bfa',
+  math:       '#6d8df7',
+};
+
+function getLangColor(tags: string[]): { name: string; color: string } | null {
+  for (const tag of tags) {
+    const key = tag.toLowerCase();
+    if (langColors[key]) return { name: tag, color: langColors[key] };
+  }
+  return null;
+}
+
+function timeAgo(date: Date): string {
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor(diff / 3600000);
+  const minutes = Math.floor(diff / 60000);
+  if (days > 365) return `${Math.floor(days / 365)} year${Math.floor(days / 365) > 1 ? 's' : ''} ago`;
+  if (days > 30) return `${Math.floor(days / 30)} month${Math.floor(days / 30) > 1 ? 's' : ''} ago`;
+  if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
+  if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+}
 ---
 
-<BaseLayout title="Digital Garden — Projects" description="A repo-centric personal homepage.万物皆可 Repo.">
-  <!-- Hero Section -->
-  <section class="hero">
-    <div class="hero-grid-bg" aria-hidden="true"></div>
-    <div class="container hero-content">
-      <div class="hero-badge animate-fade-up">
-        <span class="badge-dot"></span>
-        开放探索中 · Open to Collaboration
-      </div>
-      <h1 class="hero-title animate-fade-up" style="animation-delay: 0.05s">
-        万物皆可<br /><span class="hero-title-accent">Repo</span>
-      </h1>
-      <p class="hero-description animate-fade-up" style="animation-delay: 0.1s">
-        不是博客，不是简历。<br />每一个想法都是一个仓库，每一次推导都是一次 Commit。
-      </p>
-      <div class="hero-actions animate-fade-up" style="animation-delay: 0.15s">
-        <a href={projectsSectionHref} class="btn btn-primary">浏览项目</a>
-        <a href={aboutHref} class="btn btn-ghost">关于我</a>
-      </div>
-      <div class="hero-stats animate-fade-up" style="animation-delay: 0.2s">
-        <div class="stat">
-          <span class="stat-value">{projects.length}</span>
-          <span class="stat-label">Projects</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat">
-          <span class="stat-value">{projects.reduce((s, p) => s + p.nodeCount, 0)}</span>
-          <span class="stat-label">Nodes</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat">
-          <span class="stat-value">{projects.reduce((s, p) => s + p.commitCount, 0)}</span>
-          <span class="stat-label">Commits</span>
-        </div>
-      </div>
-    </div>
-  </section>
+<BaseLayout title="langxubai — Projects" description="A repo-centric personal homepage.万物皆可 Repo.">
+  <div class="gh-layout container">
 
-  <!-- Projects Section -->
-  <section id="projects" class="projects-section">
-    <div class="container">
-      <div class="section-header">
-        <h2 class="section-title">
-          <span class="section-title-icon">⬡</span>
+    <!-- ── Left Sidebar ───────────────────────────────────────────────── -->
+    <aside class="gh-sidebar">
+      <!-- Avatar -->
+      <div class="avatar-wrap">
+        <div class="avatar-circle" aria-hidden="true">
+          <span class="avatar-initials">L</span>
+        </div>
+      </div>
+
+      <!-- Name / Handle -->
+      <div class="profile-head">
+        <h1 class="profile-name">Langxu Bai</h1>
+        <p class="profile-handle">langxubai</p>
+      </div>
+
+      <!-- Bio -->
+      <p class="profile-bio">a student @ NankaiUniversity majoring Physics</p>
+
+      <!-- Edit / Follow button placeholder -->
+      <button class="gh-btn gh-btn-outline" type="button">Edit profile</button>
+
+      <!-- Stats -->
+      <div class="profile-stats">
+        <a href="#" class="stat-link">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 8a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 5.072A6 6 0 0 1 8 10a6 6 0 0 1 6 3.072V14.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-1.428Z"/></svg>
+          <strong>2</strong> followers
+        </a>
+        <span class="stat-dot">·</span>
+        <a href="#" class="stat-link">
+          <strong>11</strong> following
+        </a>
+      </div>
+
+      <!-- Info lines -->
+      <ul class="profile-info">
+        <li>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1.75 1h8.5c.966 0 1.75.784 1.75 1.75v5.5A1.75 1.75 0 0 1 10.25 10H7.061l-2.574 2.573A1.457 1.457 0 0 1 2 11.543V10h-.25A1.75 1.75 0 0 1 0 8.25v-5.5C0 1.784.784 1 1.75 1Z"/></svg>
+          <span>@ NankaiUniversity</span>
+        </li>
+        <li>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="m12.596 11.596-3.535 3.536a1.5 1.5 0 0 1-2.122 0l-3.535-3.536a6.5 6.5 0 1 1 9.192-9.193 6.5 6.5 0 0 1 0 9.193Zm-1.06-8.132v-.001a5 5 0 1 0-7.072 7.072L8 14.07l3.536-3.534a5 5 0 0 0 0-7.072ZM8 9a2 2 0 1 1-.001-3.999A2 2 0 0 1 8 9Z"/></svg>
+          <span>Tianjin, China</span>
+        </li>
+        <li>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M7.775 3.275a.75.75 0 0 0 1.06 1.06l1.25-1.25a2 2 0 1 1 2.83 2.83l-2.5 2.5a2 2 0 0 1-2.83 0 .75.75 0 0 0-1.06 1.06 3.5 3.5 0 0 0 4.95 0l2.5-2.5a3.5 3.5 0 0 0-4.95-4.95l-1.25 1.25Zm-4.69 9.64a2 2 0 0 1 0-2.83l2.5-2.5a2 2 0 0 1 2.83 0 .75.75 0 0 0 1.06-1.06 3.5 3.5 0 0 0-4.95 0l-2.5 2.5a3.5 3.5 0 0 0 4.95 4.95l1.25-1.25a.75.75 0 0 0-1.06-1.06l-1.25 1.25a2 2 0 0 1-2.83 0Z"/></svg>
+          <a href="https://langxubai.github.io" target="_blank" rel="noopener" class="info-link">langxubai.github.io</a>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- ── Right Main Area ────────────────────────────────────────────── -->
+    <main class="gh-main">
+      <!-- Tab bar -->
+      <nav class="gh-tabs" aria-label="Profile navigation">
+        <a href="#" class="gh-tab">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Z"/></svg>
+          Overview
+        </a>
+        <a href="#" class="gh-tab gh-tab-active">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Z"/></svg>
           Projects
-        </h2>
-        <p class="section-subtitle">每个项目都有两种阅读方式：看清全局的蓝图，或深入思维的航海日志。</p>
+          <span class="gh-tab-count">{publicProjects.length}</span>
+        </a>
+        <a href="#" class="gh-tab">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z"/></svg>
+          Stars
+        </a>
+      </nav>
+
+      <!-- Search / filters bar -->
+      <div class="repo-filters">
+        <div class="repo-search-wrap">
+          <svg class="search-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215ZM11.5 7a4.499 4.499 0 1 0-8.997 0A4.499 4.499 0 0 0 11.5 7Z"/></svg>
+          <input id="repo-search" type="text" placeholder="Find a repository..." class="repo-search" aria-label="Find a repository" />
+        </div>
+        <div class="filter-row">
+          <button class="gh-btn gh-btn-sm gh-btn-outline" type="button">
+            Type
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"/></svg>
+          </button>
+          <button class="gh-btn gh-btn-sm gh-btn-outline" type="button">
+            Language
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"/></svg>
+          </button>
+          <button class="gh-btn gh-btn-sm gh-btn-outline" type="button">
+            Sort
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"/></svg>
+          </button>
+          <button class="gh-btn gh-btn-sm gh-btn-green" type="button">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"/></svg>
+            New
+          </button>
+        </div>
       </div>
 
-      {projects.length === 0 ? (
-        <div class="empty-state">
-          <span class="empty-icon">🌱</span>
-          <p>花园正在生长中，请稍后再来。</p>
-        </div>
-      ) : (
-        <div class="projects-grid">
-          {projects.map((project) => (
-            <a href={projectHref(project.projectSlug)} class="project-card glass" aria-label={`View project: ${project.data.title}`}>
-              <div class="card-header">
-                <div class="card-icon-wrap">
-                  <span class="card-icon">⬡</span>
-                </div>
-                <div class="card-status">
-                  <span class={`status-dot status-${project.data.status ?? 'active'}`}></span>
-                  <span class="status-label">{project.data.status ?? 'active'}</span>
-                </div>
-              </div>
-              <h3 class="card-title">{project.data.title}</h3>
-              <p class="card-description">{project.data.description}</p>
-              <div class="card-tags">
-                {(project.data.tags ?? []).slice(0, 4).map((tag) => (
-                  <span class="tag">{tag}</span>
-                ))}
-              </div>
-              <div class="card-footer">
-                <div class="card-meta">
-                  <span class="meta-item">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-                    {project.nodeCount} nodes
-                  </span>
-                  <span class="meta-item">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-                    {project.commitCount} commits
+      <!-- Repo list -->
+      <ul class="repo-list" id="repo-list" aria-label="Projects">
+        {projects.map((project) => {
+          const lang = getLangColor(project.data.tags ?? []);
+          const isPrivate = project.data.visibility === 'private';
+          return (
+            <li class="repo-item" data-name={project.data.title.toLowerCase()} data-slug={project.projectSlug.toLowerCase()}>
+              <div class="repo-item-main">
+                <div class="repo-name-row">
+                  <svg class="repo-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8v9.62a3.498 3.498 0 0 1 2.5-.62h5.5Z"/></svg>
+                  <a href={isPrivate ? '#' : projectHref(project.projectSlug)} class="repo-name" aria-label={`View ${project.data.title}`}>
+                    {project.data.title}
+                  </a>
+                  <span class={`repo-visibility-badge ${isPrivate ? 'badge-private' : 'badge-public'}`}>
+                    {isPrivate ? 'Private' : 'Public'}
                   </span>
                 </div>
-                <time class="card-date" datetime={project.data.date.toISOString()}>
-                  {project.data.date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' })}
-                </time>
+                {project.data.description && (
+                  <p class="repo-desc">{project.data.description}</p>
+                )}
+                <div class="repo-meta">
+                  {lang && (
+                    <span class="repo-lang">
+                      <span class="lang-dot" style={`background:${lang.color}`}></span>
+                      {lang.name}
+                    </span>
+                  )}
+                  {project.nodeCount > 0 && (
+                    <span class="repo-meta-item">
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5 6s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3Z"/></svg>
+                      {project.nodeCount} nodes
+                    </span>
+                  )}
+                  {project.commitCount > 0 && (
+                    <span class="repo-meta-item">
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5Zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0Z"/></svg>
+                      {project.commitCount} commits
+                    </span>
+                  )}
+                  <span class="repo-updated">
+                    Updated {timeAgo(project.data.date)}
+                  </span>
+                </div>
               </div>
-              <div class="card-arrow" aria-hidden="true">→</div>
-            </a>
-          ))}
+              <div class="repo-item-aside">
+                <button class="gh-btn gh-btn-sm gh-btn-outline repo-star-btn" type="button" aria-label={`Star ${project.data.title}`}>
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
+                  Star
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {projects.length === 0 && (
+        <div class="repo-empty">
+          <svg width="40" height="40" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Z"/></svg>
+          <p>No projects yet. Create your first repository!</p>
         </div>
       )}
-    </div>
-  </section>
-
-  <!-- About Section -->
-  <section id="about" class="about-section">
-    <div class="container">
-      <div class="about-card glass">
-        <div class="about-avatar" aria-hidden="true">
-          <span class="avatar-char">S</span>
-        </div>
-        <div class="about-content">
-          <h2 class="about-name">Your Name</h2>
-          <p class="about-tagline">Physics × Code × Ideas</p>
-          <p class="about-bio">
-            量子物理研究者与全栈开发者。我用代码探索物理，用物理理解代码。
-            这个花园记录了我试错、推导、踩坑的完整轨迹——包括那些失败的版本。
-          </p>
-          <div class="about-links">
-            <a href="https://github.com" target="_blank" rel="noopener" class="about-link" aria-label="GitHub">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-              GitHub
-            </a>
-            <a href="mailto:hello@example.com" class="about-link" aria-label="Email">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-              Email
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+    </main>
+  </div>
 </BaseLayout>
 
+<script>
+  // Client-side search filter
+  const searchInput = document.getElementById('repo-search') as HTMLInputElement | null;
+  const repoItems = document.querySelectorAll<HTMLElement>('.repo-item');
+
+  searchInput?.addEventListener('input', () => {
+    const q = searchInput.value.toLowerCase().trim();
+    repoItems.forEach((item) => {
+      const name = item.dataset.name ?? '';
+      const slug = item.dataset.slug ?? '';
+      item.style.display = (!q || name.includes(q) || slug.includes(q)) ? '' : 'none';
+    });
+  });
+</script>
+
 <style>
-  /* ── Hero ── */
-  .hero {
-    position: relative;
-    min-height: calc(100vh - var(--nav-height));
-    display: flex;
-    align-items: center;
-    overflow: hidden;
-  }
-
-  .hero-grid-bg {
-    position: absolute;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(109, 141, 247, 0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(109, 141, 247, 0.04) 1px, transparent 1px);
-    background-size: 60px 60px;
-    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%);
-  }
-
-  .hero-content {
-    position: relative;
-    padding: var(--space-20) var(--space-8);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
-    max-width: 700px;
-  }
-
-  .hero-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-4);
-    background: rgba(109, 141, 247, 0.1);
-    border: 1px solid var(--border-accent);
-    border-radius: var(--radius-full);
-    font-size: 0.8rem;
-    font-weight: 500;
-    color: var(--accent-primary);
-    width: fit-content;
-  }
-
-  .badge-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--node-logic);
-    box-shadow: 0 0 6px rgba(52, 211, 153, 0.8);
-    animation: pulse-glow 2s ease-in-out infinite;
-  }
-
-  .hero-title {
-    font-size: clamp(2.5rem, 6vw, 4.5rem);
-    line-height: 1.1;
-    letter-spacing: -0.04em;
-    color: var(--text-primary);
-  }
-
-  .hero-title-accent {
-    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .hero-description {
-    font-size: 1.1rem;
-    color: var(--text-secondary);
-    line-height: 1.8;
-  }
-
-  .hero-actions {
-    display: flex;
-    gap: var(--space-4);
-    flex-wrap: wrap;
-  }
-
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    padding: var(--space-3) var(--space-6);
-    border-radius: var(--radius-md);
-    font-weight: 600;
-    font-size: 0.95rem;
-    transition: all var(--transition-normal);
-    cursor: pointer;
-  }
-
-  .btn-primary {
-    background: var(--accent-primary);
-    color: #fff;
-    box-shadow: 0 0 20px var(--accent-glow);
-  }
-  .btn-primary:hover {
-    background: var(--accent-secondary);
-    color: #fff;
-    box-shadow: 0 0 30px var(--accent-glow-strong);
-    transform: translateY(-1px);
-  }
-
-  .btn-ghost {
-    background: transparent;
-    color: var(--text-secondary);
-    border: 1px solid var(--border-normal);
-  }
-  .btn-ghost:hover {
-    color: var(--text-primary);
-    border-color: var(--border-accent);
-    background: var(--bg-elevated);
-  }
-
-  .hero-stats {
-    display: flex;
-    align-items: center;
-    gap: var(--space-6);
-    padding-top: var(--space-4);
-  }
-
-  .stat { display: flex; flex-direction: column; gap: 2px; }
-  .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--text-primary); line-height: 1; }
-  .stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
-  .stat-divider { width: 1px; height: 36px; background: var(--border-subtle); }
-
-  /* ── Projects ── */
-  .projects-section {
-    padding: var(--space-20) 0;
-  }
-
-  .section-header {
-    margin-bottom: var(--space-10);
-  }
-
-  .section-title {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    font-size: 1.75rem;
-    color: var(--text-primary);
-    margin-bottom: var(--space-3);
-  }
-
-  .section-title-icon {
-    color: var(--accent-primary);
-    font-size: 1.25rem;
-  }
-
-  .section-subtitle {
-    color: var(--text-muted);
-    font-size: 0.95rem;
-    max-width: 60ch;
-  }
-
-  .projects-grid {
+  /* ── Layout ─────────────────────────────────────────────────────────── */
+  .gh-layout {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-    gap: var(--space-5);
+    grid-template-columns: 296px 1fr;
+    gap: var(--space-8);
+    padding-top: var(--space-8);
+    padding-bottom: var(--space-16);
+    align-items: start;
   }
 
-  .project-card {
-    position: relative;
+  /* ── Sidebar ─────────────────────────────────────────────────────────── */
+  .gh-sidebar {
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-    padding: var(--space-6);
-    border-radius: var(--radius-lg);
-    color: var(--text-primary);
-    transition: all var(--transition-normal);
-    overflow: hidden;
+    position: sticky;
+    top: calc(var(--nav-height) + var(--space-6));
   }
 
-  .project-card::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(circle at 50% 0%, rgba(109, 141, 247, 0.06) 0%, transparent 70%);
-    opacity: 0;
-    transition: opacity var(--transition-normal);
+  .avatar-wrap {
+    width: 100%;
+    aspect-ratio: 1;
+    max-width: 260px;
   }
 
-  .project-card:hover {
-    border-color: var(--border-accent);
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-lg), 0 0 30px var(--accent-glow);
-  }
-
-  .project-card:hover::before { opacity: 1; }
-
-  .card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .card-icon-wrap {
-    width: 36px; height: 36px;
-    background: rgba(109, 141, 247, 0.1);
-    border: 1px solid var(--border-accent);
-    border-radius: var(--radius-md);
+  .avatar-circle {
+    width: 100%;
+    height: 100%;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 60%, #34d399 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
-    color: var(--accent-primary);
+    box-shadow: 0 0 40px var(--accent-glow), 0 0 80px rgba(109, 141, 247, 0.1);
+    border: 3px solid var(--border-normal);
   }
 
-  .card-status {
+  .avatar-initials {
+    font-size: 5rem;
+    font-weight: 700;
+    color: white;
+    font-family: var(--font-sans);
+    user-select: none;
+  }
+
+  .profile-head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: var(--space-3);
+  }
+
+  .profile-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+  }
+
+  .profile-handle {
+    font-size: 1.1rem;
+    font-weight: 300;
+    color: var(--text-muted);
+    line-height: 1.25;
+  }
+
+  .profile-bio {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-top: var(--space-2);
+  }
+
+  /* Buttons */
+  .gh-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border: 1px solid transparent;
+    line-height: 1.5;
+    white-space: nowrap;
+    font-family: var(--font-sans);
+  }
+
+  .gh-btn-outline {
+    background: var(--bg-elevated);
+    border-color: var(--border-normal);
+    color: var(--text-primary);
+    width: 100%;
+  }
+
+  .gh-btn-outline:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-accent);
+  }
+
+  .gh-btn-sm {
+    padding: 5px var(--space-3);
+    font-size: 0.8rem;
+    width: auto;
+  }
+
+  .gh-btn-green {
+    background: #238636;
+    border-color: rgba(240, 246, 252, 0.1);
+    color: #ffffff;
+  }
+
+  .gh-btn-green:hover {
+    background: #2ea043;
+  }
+
+  /* Profile stats */
+  .profile-stats {
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    flex-wrap: wrap;
   }
 
-  .status-label {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    text-transform: capitalize;
-  }
-
-  .card-title {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    line-height: 1.3;
+  .stat-link {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-secondary);
     transition: color var(--transition-fast);
   }
 
-  .project-card:hover .card-title { color: var(--accent-primary); }
+  .stat-link:hover { color: var(--accent-primary); }
 
-  .card-description {
-    font-size: 0.88rem;
-    color: var(--text-secondary);
-    line-height: 1.6;
-    flex: 1;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+  .stat-link strong {
+    color: var(--text-primary);
+    font-weight: 600;
   }
 
-  .card-tags {
+  .stat-dot {
+    color: var(--text-muted);
+    font-size: 1rem;
+  }
+
+  /* Profile info list */
+  .profile-info {
+    list-style: none;
+    padding: 0;
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: var(--space-2);
+    margin-top: var(--space-2);
   }
 
-  .card-footer {
+  .profile-info li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .profile-info svg {
+    flex-shrink: 0;
+    color: var(--text-muted);
+  }
+
+  .info-link {
+    color: var(--accent-primary);
+    transition: color var(--transition-fast);
+  }
+
+  .info-link:hover { color: var(--accent-secondary); text-decoration: underline; }
+
+  /* ── Main content ─────────────────────────────────────────────────── */
+  .gh-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-width: 0;
+  }
+
+  /* Tabs */
+  .gh-tabs {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: var(--space-5);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .gh-tabs::-webkit-scrollbar { display: none; }
+
+  .gh-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+  }
+
+  .gh-tab:hover {
+    color: var(--text-primary);
+    border-bottom-color: var(--border-normal);
+  }
+
+  .gh-tab-active {
+    color: var(--text-primary);
+    border-bottom-color: #f78166;
+    font-weight: 600;
+  }
+
+  .gh-tab-count {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 1px 6px;
+    color: var(--text-secondary);
+  }
+
+  /* Filters bar */
+  .repo-filters {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--border-subtle);
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    flex-wrap: wrap;
   }
 
-  .card-meta {
+  .repo-search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 220px;
+    max-width: 420px;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: var(--space-3);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+
+  .repo-search {
+    width: 100%;
+    padding: 6px var(--space-3) 6px calc(var(--space-3) + 20px);
+    background: var(--bg-void);
+    border: 1px solid var(--border-normal);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-family: var(--font-sans);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    outline: none;
+  }
+
+  .repo-search::placeholder { color: var(--text-muted); }
+
+  .repo-search:focus {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px rgba(109, 141, 247, 0.15);
+  }
+
+  .filter-row {
     display: flex;
-    gap: var(--space-4);
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
   }
 
-  .meta-item {
+  /* Repo list */
+  .repo-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .repo-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-5) 0;
+    border-top: 1px solid var(--border-subtle);
+    transition: background var(--transition-fast);
+    margin: 0;
+  }
+
+  .repo-item:last-child {
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .repo-item-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .repo-name-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .repo-icon {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .repo-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--accent-primary);
+    transition: color var(--transition-fast);
+    line-height: 1.25;
+  }
+
+  .repo-name:hover {
+    color: var(--accent-secondary);
+    text-decoration: underline;
+  }
+
+  .repo-visibility-badge {
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 1px 7px;
+    border-radius: var(--radius-full);
+    border: 1px solid;
+    line-height: 1.5;
+  }
+
+  .badge-public {
+    color: #7d8590;
+    border-color: rgba(125, 133, 144, 0.4);
+  }
+
+  .badge-private {
+    color: var(--node-bugfix);
+    border-color: rgba(251, 146, 60, 0.4);
+  }
+
+  .repo-desc {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin: 0;
+  }
+
+  .repo-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+    margin-top: var(--space-1);
+  }
+
+  .repo-lang {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     font-size: 0.8rem;
-    color: var(--text-muted);
+    color: var(--text-secondary);
   }
 
-  .card-date {
-    font-size: 0.78rem;
-    color: var(--text-muted);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .card-arrow {
-    position: absolute;
-    top: var(--space-6);
-    right: var(--space-6);
-    color: var(--accent-primary);
-    opacity: 0;
-    transform: translateX(-6px);
-    transition: all var(--transition-normal);
-    font-size: 1.1rem;
-  }
-
-  .project-card:hover .card-arrow {
-    opacity: 1;
-    transform: translateX(0);
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: var(--space-20) 0;
-    color: var(--text-muted);
-  }
-
-  .empty-icon { font-size: 3rem; display: block; margin-bottom: var(--space-4); }
-
-  /* ── About ── */
-  .about-section { padding: var(--space-20) 0; }
-
-  .about-card {
-    display: flex;
-    gap: var(--space-8);
-    padding: var(--space-10);
-    border-radius: var(--radius-xl);
-    align-items: flex-start;
-  }
-
-  .about-avatar {
+  .lang-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
     flex-shrink: 0;
-    width: 80px; height: 80px;
-    border-radius: var(--radius-full);
-    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-    display: flex;
+  }
+
+  .repo-meta-item {
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    box-shadow: 0 0 20px var(--accent-glow);
+    gap: 4px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
   }
 
-  .avatar-char {
-    font-size: 2rem;
-    font-weight: 700;
-    color: white;
+  .repo-updated {
+    font-size: 0.8rem;
+    color: var(--text-muted);
   }
 
-  .about-content { flex: 1; }
-
-  .about-name {
-    font-size: 1.5rem;
-    color: var(--text-primary);
-    margin-bottom: var(--space-1);
+  /* Star button */
+  .repo-item-aside {
+    flex-shrink: 0;
+    padding-top: 2px;
   }
 
-  .about-tagline {
-    font-size: 0.9rem;
-    color: var(--accent-primary);
-    font-weight: 500;
-    margin-bottom: var(--space-4);
-  }
-
-  .about-bio {
+  .repo-star-btn {
+    width: auto;
     color: var(--text-secondary);
-    line-height: 1.8;
-    margin-bottom: var(--space-6);
-    max-width: 60ch;
   }
 
-  .about-links {
-    display: flex;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-  }
-
-  .about-link {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-4);
-    border-radius: var(--radius-md);
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    border: 1px solid var(--border-normal);
-    transition: all var(--transition-fast);
-  }
-
-  .about-link:hover {
-    color: var(--accent-primary);
-    border-color: var(--border-accent);
+  .repo-star-btn:hover {
     background: rgba(109, 141, 247, 0.08);
+    border-color: var(--border-accent);
+    color: var(--accent-primary);
   }
 
-  /* ── Responsive ── */
-  @media (max-width: 640px) {
-    .projects-grid { grid-template-columns: 1fr; }
-    .about-card { flex-direction: column; gap: var(--space-6); padding: var(--space-6); }
-    .hero-stats { gap: var(--space-4); }
+  /* Empty state */
+  .repo-empty {
+    text-align: center;
+    padding: var(--space-16) 0;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .repo-empty p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  /* ── Responsive ──────────────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .gh-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .gh-sidebar {
+      position: static;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    .avatar-wrap {
+      width: 80px;
+      height: 80px;
+      aspect-ratio: 1;
+    }
+
+    .profile-head, .profile-bio, .profile-stats, .profile-info {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .gh-btn-outline {
+      width: auto;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .repo-filters {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .repo-search-wrap {
+      max-width: none;
+    }
+
+    .filter-row {
+      justify-content: flex-end;
+    }
   }
 </style>
